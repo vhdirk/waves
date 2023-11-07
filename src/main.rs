@@ -83,8 +83,13 @@ fn main() -> ! {
 
     // DMA VERSION
     //------------------------------------------------------------------------
-       hal::interrupt::enable(
-        hal::peripherals::Interrupt::SPI2_DMA,
+    hal::interrupt::enable(
+        hal::peripherals::Interrupt::DMA_IN_CH0,
+        hal::interrupt::Priority::Priority1,
+    )
+    .unwrap();
+    hal::interrupt::enable(
+        hal::peripherals::Interrupt::DMA_OUT_CH0,
         hal::interrupt::Priority::Priority1,
     )
     .unwrap();
@@ -115,7 +120,6 @@ fn main() -> ! {
     let mut delay = Delay::new(&clocks);
     let mut spi_device = ExclusiveDevice::new(spi_bus, cs, delay);
 
-
     // Setup the epd
     let mut delay = Delay::new(&clocks);
 
@@ -126,7 +130,6 @@ fn main() -> ! {
 
     println!("Now test new graphics with default rotation and some special stuff");
     display.clear(TriColor::White).ok();
-
 
     // draw a analog clock
     let style = PrimitiveStyleBuilder::new()
@@ -170,7 +173,8 @@ fn main() -> ! {
     println!("Draw!");
 
     // Transfer the frame data to the epd and display it
-    epd.update_and_display_frame(&mut spi_device, &display.buffer(), &mut delay).unwrap();
+    epd.update_and_display_frame(&mut spi_device, &display.buffer(), &mut delay)
+        .unwrap();
 
     println!("wait for idle!");
     epd.wait_until_idle(&mut spi_device, &mut delay);
