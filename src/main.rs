@@ -83,6 +83,12 @@ fn main() -> ! {
 
     // DMA VERSION
     //------------------------------------------------------------------------
+       hal::interrupt::enable(
+        hal::peripherals::Interrupt::SPI2_DMA,
+        hal::interrupt::Priority::Priority1,
+    )
+    .unwrap();
+
     let dma = Gdma::new(peripherals.DMA);
     let dma_channel = dma.channel0;
 
