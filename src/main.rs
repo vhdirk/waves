@@ -104,7 +104,7 @@ fn main() -> ! {
     // let spi_controller = SpiBusController::from_spi(spi);
     // let mut spi_device = spi_controller.add_device(cs);
 
-    // NON-DMA  VERSION (patch not submitted yet)
+    // NON-DMA VERSION 2
     //------------------------------------------------------------------------
     // let spi = Spi::new_no_cs_no_miso(
     //     peripherals.SPI2,
@@ -218,10 +218,10 @@ fn main() -> ! {
         .unwrap();
 
     println!("wait for idle!");
-    epd.wait_until_idle(&mut spi_device, &mut delay);
+    epd.wait_until_idle(&mut spi_device, &mut delay).unwrap();
 
     println!("sleep!");
-    epd.sleep(&mut spi_device, &mut delay);
+    epd.sleep(&mut spi_device, &mut delay).unwrap();
 
     loop {
         println!("Loop...");
