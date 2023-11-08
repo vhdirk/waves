@@ -1,6 +1,13 @@
 #![no_std]
 #![no_main]
+#![feature(type_alias_impl_trait)]
 
+#![macro_use]
+extern crate alloc;
+
+use core::mem::MaybeUninit;
+
+use alloc::boxed::Box;
 use esp_backtrace as _;
 use esp_println::println;
 
@@ -36,9 +43,25 @@ use epd_waveshare::{
     graphics::VarDisplay,
     prelude::*,
 };
+use static_cell::make_static;
+
+#[global_allocator]
+static ALLOCATOR: esp_alloc::EspHeap = esp_alloc::EspHeap::empty();
+
+fn init_heap() {
+    const HEAP_SIZE: usize = 128 * 1024;
+    static mut HEAP: MaybeUninit<[u8; HEAP_SIZE]> = MaybeUninit::uninit();
+
+    unsafe {
+        ALLOCATOR.init(HEAP.as_mut_ptr() as *mut u8, HEAP_SIZE);
+    }
+}
+
 
 #[entry]
 fn main() -> ! {
+    init_heap();
+
     let peripherals = Peripherals::take();
     let system = peripherals.SYSTEM.split();
 
@@ -81,6 +104,21 @@ fn main() -> ! {
     // let spi_controller = SpiBusController::from_spi(spi);
     // let mut spi_device = spi_controller.add_device(cs);
 
+    // NON-DMA  VERSION (patch not submitted yet)
+    //------------------------------------------------------------------------
+    // let spi = Spi::new_no_cs_no_miso(
+    //     peripherals.SPI2,
+    //     sclk,
+    //     mosi,
+    //     2u32.MHz(),
+    //     SpiMode::Mode0,
+    //     &clocks,
+    // );
+
+    // log::info!("Locking spi bus");
+
+    // let mut spi_device = ExclusiveDevice::new(spi, cs, delay);
+
     // DMA VERSION
     //------------------------------------------------------------------------
     hal::interrupt::enable(
@@ -97,8 +135,8 @@ fn main() -> ! {
     let dma = Gdma::new(peripherals.DMA);
     let dma_channel = dma.channel0;
 
-    let mut descriptors = [0u32; 8 * 3];
-    let mut rx_descriptors = [0u32; 8 * 3];
+    let mut tx_descriptors = [0u32; 8 * 6];
+    let mut rx_descriptors = [0u32; 8];
 
     let mut spi_bus = Spi::new_no_cs_no_miso(
         peripherals.SPI2,
@@ -110,7 +148,7 @@ fn main() -> ! {
     )
     .with_dma(dma_channel.configure(
         false,
-        &mut descriptors,
+        &mut tx_descriptors,
         &mut rx_descriptors,
         DmaPriority::Priority0,
     ));
@@ -126,7 +164,10 @@ fn main() -> ! {
     let mut epd = Epd7in5::new(&mut spi_device, busy, dc, rst, &mut delay, None).unwrap();
 
     // Setup the graphics
-    let mut display = Display7in5::default();
+    // Display uses #[inline(always)] so stack allocation should be skipped here
+    let mut disp = Box::new(Display7in5::default());
+
+    let display = disp.as_mut();
 
     println!("Now test new graphics with default rotation and some special stuff");
     display.clear(TriColor::White).ok();
@@ -139,13 +180,13 @@ fn main() -> ! {
 
     let _ = Circle::with_center(Point::new(64, 64), 80)
         .into_styled(style)
-        .draw(&mut display);
+        .draw(display);
     let _ = Line::new(Point::new(64, 64), Point::new(0, 64))
         .into_styled(style)
-        .draw(&mut display);
+        .draw(display);
     let _ = Line::new(Point::new(64, 64), Point::new(80, 80))
         .into_styled(style)
-        .draw(&mut display);
+        .draw(display);
 
     // draw white on black background
     let style = MonoTextStyleBuilder::new()
@@ -156,7 +197,7 @@ fn main() -> ! {
     let text_style = TextStyleBuilder::new().baseline(Baseline::Top).build();
 
     let _ = Text::with_text_style("It's working-WoB!", Point::new(175, 250), style, text_style)
-        .draw(&mut display);
+        .draw(display);
 
     // use bigger/different font
     let style = MonoTextStyleBuilder::new()
@@ -166,7 +207,7 @@ fn main() -> ! {
         .build();
 
     let _ = Text::with_text_style("It's working-WoB!", Point::new(50, 200), style, text_style)
-        .draw(&mut display);
+        .draw(display);
 
     let mut delay = Delay::new(&clocks);
 

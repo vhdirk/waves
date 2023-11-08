@@ -11,6 +11,7 @@ hal = { package = "esp32s3-hal", version = "0.13.0", features = [
     "log",
     "eh1"
 ]}
+esp-alloc = "0.3.0"
 esp-backtrace = { version = "0.9.0", features = ["esp32s3", "panic-handler", "exception-handler", "print-uart"] }
 esp-println = { version = "0.7.0", features = ["esp32s3","log"] }
 log = { version = "0.4.18" }
@@ -25,3 +26,6 @@ epd-waveshare = { path = "../epd-waveshare" }
 embedded-hal = { version = "=1.0.0-rc.1" }
 embedded-hal-bus = { version = "0.1.0-rc.1"}
 static_cell = { version = "2.0.0", features = ["nightly"] }
+
+# [patch.crates-io]
+# hal = {package = "esp32s3-hal", path = "../esp-hal/esp32s3-hal"}
