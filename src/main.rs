@@ -20,7 +20,7 @@ use embedded_graphics::{
 use embedded_hal::digital::{InputPin, OutputPin};
 use embedded_hal::spi::{SpiBus, SpiDevice};
 use embedded_hal_bus::spi::ExclusiveDevice;
-use hal::{
+use esp_hal::{
     clock::{ClockControl, Clocks},
     dma::DmaPriority,
     entry,
@@ -39,7 +39,8 @@ use hal::{
 };
 
 use epd_waveshare::{
-    epd7in5b_v2::{Display7in5, Epd7in5, HEIGHT as DISPLAY_HEIGHT, WIDTH as DISPLAY_WIDTH},
+    epd7in5b_v2::{Display7in5 as EpdDisplay, Epd7in5 as EpdDriver, WIDTH as DISPLAY_WIDTH, HEIGHT as DISPLAY_HEIGHT},
+    // epd2in9_v2::{Display2in9 as EpdDisplay, Epd2in9 as EpdDriver, WIDTH as DISPLAY_WIDTH, HEIGHT as DISPLAY_HEIGHT},
     graphics::VarDisplay,
     prelude::*,
 };
@@ -56,6 +57,11 @@ fn init_heap() {
         ALLOCATOR.init(HEAP.as_mut_ptr() as *mut u8, HEAP_SIZE);
     }
 }
+
+const fn num_descriptors(buffer_size: usize) -> usize {
+   (((buffer_size + 4091) / 4092) + 1) * 3
+}
+
 
 
 #[entry]
@@ -90,14 +96,14 @@ fn main() -> ! {
 
     // NON-DMA VERSION
     //------------------------------------------------------------------------
-    // let spi = Spi::new_no_cs_no_miso(
+    // let spi = Spi::new(
     //     peripherals.SPI2,
-    //     sclk,
-    //     mosi,
+
     //     2u32.MHz(),
     //     SpiMode::Mode0,
     //     &clocks,
-    // );
+    // )   .with_sck(sclk)
+    // .with_mosi(mosi);
 
     // log::info!("Locking spi bus");
 
@@ -106,46 +112,52 @@ fn main() -> ! {
 
     // NON-DMA VERSION 2
     //------------------------------------------------------------------------
-    // let spi = Spi::new_no_cs_no_miso(
+    // let spi = Spi::new(
     //     peripherals.SPI2,
-    //     sclk,
-    //     mosi,
+
     //     2u32.MHz(),
     //     SpiMode::Mode0,
     //     &clocks,
-    // );
+    // )   .with_sck(sclk)
+    // .with_mosi(mosi);
+
 
     // log::info!("Locking spi bus");
 
     // let mut spi_device = ExclusiveDevice::new(spi, cs, delay);
 
     // DMA VERSION
-    //------------------------------------------------------------------------
-    hal::interrupt::enable(
-        hal::peripherals::Interrupt::DMA_IN_CH0,
-        hal::interrupt::Priority::Priority1,
+    // ------------------------------------------------------------------------
+    esp_hal::interrupt::enable(
+        esp_hal::peripherals::Interrupt::DMA_IN_CH0,
+        esp_hal::interrupt::Priority::Priority1,
     )
     .unwrap();
-    hal::interrupt::enable(
-        hal::peripherals::Interrupt::DMA_OUT_CH0,
-        hal::interrupt::Priority::Priority1,
+    esp_hal::interrupt::enable(
+        esp_hal::peripherals::Interrupt::DMA_OUT_CH0,
+        esp_hal::interrupt::Priority::Priority1,
     )
     .unwrap();
 
     let dma = Gdma::new(peripherals.DMA);
     let dma_channel = dma.channel0;
 
-    let mut tx_descriptors = [0u32; 8 * 6];
-    let mut rx_descriptors = [0u32; 8];
+    const buffer_size: usize = epd_waveshare::buffer_len(DISPLAY_WIDTH as usize, DISPLAY_HEIGHT as usize);
+    log::info!("Buffer size: {} - {}", buffer_size, num_descriptors(buffer_size));
 
-    let mut spi_bus = Spi::new_no_cs_no_miso(
+
+    let mut tx_descriptors = [0u32; num_descriptors(buffer_size)];
+    let mut rx_descriptors = [0u32; num_descriptors(buffer_size)];
+
+    let mut spi_bus = Spi::new(
         peripherals.SPI2,
-        sclk,
-        mosi,
+
         2u32.MHz(),
         SpiMode::Mode0,
         &clocks,
     )
+    .with_sck(sclk)
+    .with_mosi(mosi)
     .with_dma(dma_channel.configure(
         false,
         &mut tx_descriptors,
@@ -161,20 +173,22 @@ fn main() -> ! {
     // Setup the epd
     let mut delay = Delay::new(&clocks);
 
-    let mut epd = Epd7in5::new(&mut spi_device, busy, dc, rst, &mut delay, None).unwrap();
+    let mut epd = EpdDriver::new(&mut spi_device, busy, dc, rst, &mut delay, Some(10)).unwrap();
+
+
 
     // Setup the graphics
     // Display uses #[inline(always)] so stack allocation should be skipped here
-    let mut disp = Box::new(Display7in5::default());
+    let mut disp = Box::new(EpdDisplay::default());
 
     let display = disp.as_mut();
 
     println!("Now test new graphics with default rotation and some special stuff");
-    display.clear(TriColor::White).ok();
+    display.clear(<EpdDisplay as DrawTarget>::Color::White).ok();
 
     // draw a analog clock
     let style = PrimitiveStyleBuilder::new()
-        .stroke_color(TriColor::Black)
+        .stroke_color(<EpdDisplay as DrawTarget>::Color::Chromatic)
         .stroke_width(1)
         .build();
 
@@ -191,8 +205,8 @@ fn main() -> ! {
     // draw white on black background
     let style = MonoTextStyleBuilder::new()
         .font(&embedded_graphics::mono_font::ascii::FONT_6X10)
-        .text_color(TriColor::Chromatic)
-        .background_color(TriColor::Black)
+        .text_color(<EpdDisplay as DrawTarget>::Color::Black)
+        .background_color(<EpdDisplay as DrawTarget>::Color::Black)
         .build();
     let text_style = TextStyleBuilder::new().baseline(Baseline::Top).build();
 
@@ -202,8 +216,8 @@ fn main() -> ! {
     // use bigger/different font
     let style = MonoTextStyleBuilder::new()
         .font(&embedded_graphics::mono_font::ascii::FONT_10X20)
-        .text_color(TriColor::White)
-        .background_color(TriColor::Black)
+        .text_color(<EpdDisplay as DrawTarget>::Color::White)
+        .background_color(<EpdDisplay as DrawTarget>::Color::Black)
         .build();
 
     let _ = Text::with_text_style("It's working-WoB!", Point::new(50, 200), style, text_style)

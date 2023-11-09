@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "author": "Dirk Van Haerenborgh",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "board-esp32-s3-devkitc-1",
+      "id": "esp",
+      "top": 76.62,
+      "left": 129.37,
+      "attrs": { "flashSize": "8", "builder": "rust-nostd-esp" }
+    },
+    {
+      "type": "board-epaper-2in9",
+      "id": "epd",
+      "top": -85.8,
+      "left": 100.08,
+      "attrs": {}
+    }
+  ],
+  "connections": [
+    ["esp:TX0", "$serialMonitor:RX", "", []],
+    ["esp:RX0", "$serialMonitor:TX", "", []],
+    ["esp:3V3.1", "epd:VCC", "gray", ["h-108.28", "v219.47"]],
+    ["epd:GND", "esp:GND.1", "brown", ["h-81.97", "v239.23"]],
+    ["epd:DIN", "esp:11", "blue", ["h-143.7", "v132.9"]],
+    ["epd:CLK", "esp:12", "yellow", ["h-101.32", "v200.2"]],
+    ["epd:BUSY", "esp:8", "purple", ["h-133.58", "v276.97"]],
+    ["epd:DC", "esp:17", "green", ["h-117.14", "v171.77"]],
+    ["epd:CS", "esp:10", "orange", ["h-108.28", "v219.47"]],
+    ["epd:RST", "esp:16", "white", ["h-108.28", "v219.47"]]
+  ],
+  "serialMonitor": {
+    "display": "terminal",
+    "newline": "lf",
+    "convertEol": true
+  },
+  "dependencies": {}
+}
